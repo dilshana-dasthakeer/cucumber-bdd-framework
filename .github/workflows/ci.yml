@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "30 20 * * *" # nightly, 02:00 in Sri Lanka
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: Smoke (Chrome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Run smoke scenarios
+        run: mvn -B -ntp test -Dbrowser=chrome -Dcucumber.filter.tags="@smoke"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cucumber-report-smoke
+          path: target/cucumber-report/
+          retention-days: 14
+
+  regression:
+    name: Regression (${{ matrix.browser }})
+    needs: smoke
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, firefox]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - name: Run regression scenarios
+        run: mvn -B -ntp test -Dbrowser=${{ matrix.browser }} -Dcucumber.filter.tags="@regression"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cucumber-report-${{ matrix.browser }}
+          path: target/cucumber-report/
+          retention-days: 14
